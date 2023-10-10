@@ -25,6 +25,7 @@
     </properties>
 
     <modules>
+        <module>fusion-ktor</module>
         <module>fusion-messaging</module>
     </modules>
 
