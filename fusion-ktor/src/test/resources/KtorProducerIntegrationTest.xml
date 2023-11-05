@@ -6,10 +6,4 @@
 
     <bean class="com.kaizensundays.fusion.ktor.DefaultRestController"/>
 
-    <bean id="loadBalancer" class="com.kaizensundays.fusion.ktor.LoadBalancerStub"/>
-
-    <bean id="producer" class="com.kaizensundays.fusion.ktor.KtorProducer">
-        <constructor-arg index="0" ref="loadBalancer"/>
-    </bean>
-
 </beans>

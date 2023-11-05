@@ -1,10 +1,11 @@
 package com.kaizensundays.fusion.ktor
 
+import com.kaizensundays.fusion.messsaging.DefaultLoadBalancer
 import com.kaizensundays.fusion.messsaging.Instance
+import com.kaizensundays.fusion.messsaging.LoadBalancer
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.web.server.LocalServerPort
+import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.test.context.ContextConfiguration
 import java.net.URI
 import kotlin.test.assertEquals
@@ -17,18 +18,21 @@ import kotlin.test.assertEquals
 @ContextConfiguration(locations = ["/KtorProducerIntegrationTest.xml"])
 class KtorProducerIntegrationTest : KtorIntegrationTestSupport() {
 
-    @Autowired
-    lateinit var loadBalancer: LoadBalancerStub
+    private lateinit var loadBalancer: LoadBalancer
 
-    @Autowired
-    lateinit var producer: KtorProducer
+    private lateinit var producer: KtorProducer
 
     @LocalServerPort
     var port = -1
 
     @BeforeEach
     fun before() {
-        loadBalancer.instance = Instance("localhost", port)
+        loadBalancer = DefaultLoadBalancer(
+            listOf(
+                Instance("localhost", port),
+            )
+        )
+        producer = KtorProducer(loadBalancer)
     }
 
     @Test
