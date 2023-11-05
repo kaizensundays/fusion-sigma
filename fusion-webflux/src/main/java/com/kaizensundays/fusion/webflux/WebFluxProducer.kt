@@ -24,7 +24,7 @@ import java.util.function.Supplier
  * @author Sergey Chuykov
  */
 @SuppressWarnings(
-    "kotlin:S6508" // Mono<Void>
+    "kotlin:S6508", // Mono<Void>
 )
 class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
 
@@ -58,6 +58,8 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
     private fun webClient() = webClient.get { WebClient.create() }
 
     private fun webSocketClient() = webSocketClient.get { ReactorNettyWebSocketClient() }
+
+    private fun Retry.RetrySignal.printAttempts() = "attempt=" + (this.totalRetries() + 1)
 
     fun optionsMap(topic: URI): Map<String, String> {
 
@@ -105,7 +107,7 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
         return Flux.defer { get(topic, client) }
             .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
                 .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
-                .doAfterRetry { signal -> logger.trace("attempt=" + (signal.totalRetries() + 1)) }
+                .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
             )
     }
 
@@ -128,7 +130,7 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
         return Flux.defer { post(topic, msg, client) }
             .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
                 .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
-                .doAfterRetry { signal -> logger.trace("attempt=" + (signal.totalRetries() + 1)) }
+                .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
             )
     }
 
@@ -168,7 +170,7 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
         return Flux.defer { ws(topic, msg, client) }
             .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
                 .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
-                .doAfterRetry { signal -> logger.trace("attempt=" + (signal.totalRetries() + 1)) }
+                .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
             )
     }
 
@@ -214,7 +216,7 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
         return Mono.defer { send(topic, msg, client) }
             .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
                 .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
-                .doAfterRetry { signal -> logger.trace("attempt=" + (signal.totalRetries() + 1)) }
+                .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
             )
     }
 }
