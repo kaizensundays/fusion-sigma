@@ -1,6 +1,7 @@
 package com.kaizensundays.fusion.messsaging
 
 import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
 import java.net.URI
 
 /**
@@ -14,6 +15,6 @@ interface Producer {
 
     fun request(topic: URI): Flux<ByteArray>
 
-    fun send(topic: URI, msg: ByteArray)
+    fun send(topic: URI, msg: ByteArray): Mono<Void>
 
 }

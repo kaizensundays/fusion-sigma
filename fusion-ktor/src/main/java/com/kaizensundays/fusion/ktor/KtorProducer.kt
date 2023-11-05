@@ -21,6 +21,7 @@ import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
 import java.net.URI
 
 /**
@@ -28,6 +29,9 @@ import java.net.URI
  *
  * @author Sergey Chuykov
  */
+@SuppressWarnings(
+    "kotlin:S6508" // Mono<Void>
+)
 class KtorProducer(private val loadBalancer: LoadBalancer) : Producer {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -111,7 +115,7 @@ class KtorProducer(private val loadBalancer: LoadBalancer) : Producer {
         return request(topic, byteArrayOf())
     }
 
-    override fun send(topic: URI, msg: ByteArray) {
-        //
+    override fun send(topic: URI, msg: ByteArray): Mono<Void> {
+        return Mono.empty()
     }
 }
