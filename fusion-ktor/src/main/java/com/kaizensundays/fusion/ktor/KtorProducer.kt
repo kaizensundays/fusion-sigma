@@ -110,4 +110,8 @@ class KtorProducer(private val loadBalancer: LoadBalancer) : Producer {
     override fun request(topic: URI): Flux<ByteArray> {
         return request(topic, byteArrayOf())
     }
+
+    override fun send(topic: URI, msg: ByteArray) {
+        //
+    }
 }

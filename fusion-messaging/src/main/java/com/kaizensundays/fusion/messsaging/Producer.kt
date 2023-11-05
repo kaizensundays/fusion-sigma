@@ -14,4 +14,6 @@ interface Producer {
 
     fun request(topic: URI): Flux<ByteArray>
 
+    fun send(topic: URI, msg: ByteArray)
+
 }
