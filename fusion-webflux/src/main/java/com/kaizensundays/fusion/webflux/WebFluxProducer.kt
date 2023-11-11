@@ -1,0 +1,222 @@
+package com.kaizensundays.fusion.webflux
+
+import com.kaizensundays.fusion.messsaging.LoadBalancer
+import com.kaizensundays.fusion.messsaging.Producer
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import org.springframework.web.reactive.function.BodyInserters
+import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient
+import org.springframework.web.reactive.socket.client.WebSocketClient
+import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
+import reactor.core.publisher.Sinks
+import reactor.core.scheduler.Schedulers
+import reactor.util.retry.Retry
+import java.net.URI
+import java.time.Duration
+import java.util.concurrent.atomic.AtomicReference
+import java.util.function.Supplier
+
+/**
+ * Created: Saturday 9/30/2023, 7:12 PM Eastern Time
+ *
+ * @author Sergey Chuykov
+ */
+@SuppressWarnings(
+    "kotlin:S6508", // Mono<Void>
+)
+class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
+
+    private val logger: Logger = LoggerFactory.getLogger(javaClass)
+
+    private val supportedSchemes = listOf("get", "post", "ws")
+
+    private var webClient: AtomicReference<WebClient> = AtomicReference()
+
+    private var webSocketClient: AtomicReference<WebSocketClient> = AtomicReference()
+
+    fun setWebClient(webClient: WebClient) {
+        this.webClient.set(webClient)
+    }
+
+    fun setWebSocketClient(webSocketClient: WebSocketClient) {
+        this.webSocketClient.set(webSocketClient)
+    }
+
+    fun <T> AtomicReference<T>.get(factory: Supplier<T>): T {
+        if (this.get() == null) {
+            synchronized(this) {
+                if (this.get() == null) {
+                    this.set(factory.get())
+                }
+            }
+        }
+        return this.get()
+    }
+
+    private fun webClient() = webClient.get { WebClient.create() }
+
+    private fun webSocketClient() = webSocketClient.get { ReactorNettyWebSocketClient() }
+
+    private fun Retry.RetrySignal.printAttempts() = "attempt=" + (this.totalRetries() + 1)
+
+    fun optionsMap(topic: URI): Map<String, String> {
+
+        return if (topic.query != null) {
+            topic.query.split("&")
+                .map { opt -> opt.split("=") }
+                .associate { opt -> opt[0] to opt[1] }
+        } else {
+            emptyMap()
+        }
+    }
+
+    private fun parse(s: String?, default: Long) = s?.toLong() ?: default
+
+    fun topicOptions(topic: URI): TopicOptions {
+        val opts = TopicOptions()
+        val map = optionsMap(topic)
+        opts.maxAttempts = parse(map["maxAttempts"], opts.maxAttempts)
+        opts.timeoutSec = parse(map["timeoutSec"], opts.timeoutSec)
+        return opts
+    }
+
+    private fun nextUri(topic: URI): URI {
+        val instance = loadBalancer.get()
+        val uri = URI("http://${instance.host}:${instance.port}" + topic.path)
+        logger.info("nextUri=$uri")
+        return uri
+    }
+
+    private fun get(topic: URI, client: WebClient): Flux<ByteArray> {
+
+        return client.get()
+            .uri { _ -> nextUri(topic) }
+            .retrieve()
+            .bodyToFlux(ByteArray::class.java)
+            .doOnError { logger.trace("doOnError") }
+    }
+
+    private fun get(topic: URI): Flux<ByteArray> {
+
+        val client = webClient()
+
+        val opts = topicOptions(topic)
+
+        return Flux.defer { get(topic, client) }
+            .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
+                .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
+                .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
+            )
+    }
+
+    private fun post(topic: URI, msg: ByteArray, client: WebClient): Flux<ByteArray> {
+
+        return client.post()
+            .uri { _ -> nextUri(topic) }
+            .body(BodyInserters.fromValue(msg))
+            .retrieve()
+            .bodyToFlux(ByteArray::class.java)
+            .doOnError { logger.trace("doOnError") }
+    }
+
+    private fun post(topic: URI, msg: ByteArray): Flux<ByteArray> {
+
+        val client = webClient()
+
+        val opts = topicOptions(topic)
+
+        return Flux.defer { post(topic, msg, client) }
+            .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
+                .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
+                .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
+            )
+    }
+
+    private fun ws(topic: URI, msg: ByteArray, client: WebSocketClient): Flux<ByteArray> {
+
+        val uri = nextUri(topic)
+
+        val sub = Sinks.many().multicast().directBestEffort<ByteArray>()
+
+        val pub = Flux.just(String(msg))
+
+        val ws = client.execute(uri) { session ->
+            session.send(pub.map { msg -> session.textMessage(msg) })
+                .thenMany(session.receive().map { wsm -> wsm.payloadAsText }
+                    .doOnNext { msg ->
+                        logger.info("< {}", msg)
+                        sub.tryEmitNext(msg.toByteArray())
+                    }
+                )
+                .then()
+        }.doOnError { e ->
+            logger.error("", e)
+            sub.tryEmitError(e)
+        }
+
+        return sub.asFlux()
+            .publishOn(Schedulers.boundedElastic())
+            .doOnSubscribe { _ -> ws.subscribe() }
+    }
+
+    private fun ws(topic: URI, msg: ByteArray): Flux<ByteArray> {
+
+        val opts = topicOptions(topic)
+
+        val client = webSocketClient()
+
+        return Flux.defer { ws(topic, msg, client) }
+            .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
+                .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
+                .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
+            )
+    }
+
+    override fun request(topic: URI, msg: ByteArray): Flux<ByteArray> {
+
+        require(supportedSchemes.contains(topic.scheme))
+
+        return try {
+            when (topic.scheme) {
+                "ws" -> ws(topic, msg)
+                "post" -> post(topic, msg)
+                else -> get(topic)
+            }
+        } catch (e: Exception) {
+            Flux.error(IllegalStateException())
+        }
+    }
+
+    override fun request(topic: URI): Flux<ByteArray> {
+        return request(topic, byteArrayOf())
+    }
+
+
+    private fun send(topic: URI, msg: ByteArray, client: WebSocketClient): Mono<Void> {
+
+        val uri = nextUri(topic)
+
+        val pub = Flux.just(String(msg))
+
+        return client.execute(uri) { session ->
+            session.send(pub.map { msg -> session.textMessage(msg) })
+        }
+    }
+
+    override fun send(topic: URI, msg: ByteArray): Mono<Void> {
+
+        require("ws" == topic.scheme)
+
+        val opts = topicOptions(topic)
+
+        val client = webSocketClient()
+
+        return Mono.defer { send(topic, msg, client) }
+            .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
+                .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
+                .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
+            )
+    }
+}
