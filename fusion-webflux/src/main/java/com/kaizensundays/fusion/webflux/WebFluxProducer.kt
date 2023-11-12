@@ -198,10 +198,10 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
 
         val uri = nextUri(topic)
 
-        val pub = Flux.just(String(msg))
+        val pub = Flux.just(msg)
 
         return client.execute(uri) { session ->
-            session.send(pub.map { msg -> session.textMessage(msg) })
+            session.send(pub.map { msg -> session.binaryMessage { factory -> factory.wrap(msg) } })
         }
     }
 
