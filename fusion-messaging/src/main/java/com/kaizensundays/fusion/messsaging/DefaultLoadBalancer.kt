@@ -1,5 +1,6 @@
 package com.kaizensundays.fusion.messsaging
 
+import reactor.core.publisher.Mono
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -11,9 +12,13 @@ class DefaultLoadBalancer(private val instances: List<Instance>) : LoadBalancer 
 
     private val index = AtomicLong()
 
-    override fun get(): Instance {
-        val idx = index.getAndIncrement()
-        return instances[(idx % instances.size).toInt()]
+    override fun get(): Mono<Instance> {
+        return if (instances.isNotEmpty()) {
+            val idx = index.getAndIncrement()
+            Mono.just(instances[(idx % instances.size).toInt()])
+        } else {
+            Mono.error(IllegalStateException())
+        }
     }
 
 }

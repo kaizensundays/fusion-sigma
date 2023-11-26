@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import java.net.URI
+import java.time.Duration
 
 /**
  * Created: Saturday 10/07/2023, 1:15 PM Eastern Time
@@ -57,7 +58,8 @@ class KtorProducer(private val loadBalancer: LoadBalancer) : Producer {
     }
 
     private fun nextUrl(topic: URI): String {
-        val instance = loadBalancer.get()
+        val instance = loadBalancer.get().block(Duration.ofSeconds(100))
+        requireNotNull(instance)
         return getUrl(instance, topic)
     }
 

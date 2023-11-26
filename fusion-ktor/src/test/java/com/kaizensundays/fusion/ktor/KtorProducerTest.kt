@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import reactor.core.publisher.Mono
 import java.net.URI
 import kotlin.test.assertEquals
 
@@ -27,7 +28,7 @@ class KtorProducerTest : KtorTestSupport() {
 
     @BeforeEach
     fun before() {
-        whenever(loadBalancer.get()).thenReturn(Instance("localhost", 51001))
+        whenever(loadBalancer.get()).thenReturn(Mono.just(Instance("localhost", 51001)))
     }
 
     @Test

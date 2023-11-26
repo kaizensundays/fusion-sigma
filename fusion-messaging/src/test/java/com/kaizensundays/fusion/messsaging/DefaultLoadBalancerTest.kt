@@ -1,9 +1,7 @@
-package com.kaizensundays.fusion.messaging
+package com.kaizensundays.fusion.messsaging
 
-import com.kaizensundays.fusion.messsaging.DefaultLoadBalancer
-import com.kaizensundays.fusion.messsaging.Instance
 import org.junit.Test
-import kotlin.test.assertEquals
+import reactor.test.StepVerifier
 
 /**
  * Created: Saturday 10/21/2023, 12:16 PM Eastern Time
@@ -15,7 +13,13 @@ class DefaultLoadBalancerTest {
     @Test
     fun test() {
 
-        val loadBalancer = DefaultLoadBalancer(
+        var loadBalancer = DefaultLoadBalancer(emptyList())
+
+        StepVerifier.create(loadBalancer.get())
+            .expectError(IllegalStateException::class.java)
+            .verify()
+
+        loadBalancer = DefaultLoadBalancer(
             listOf(
                 Instance("host0", 51000),
                 Instance("host1", 51001),
@@ -23,10 +27,17 @@ class DefaultLoadBalancerTest {
             )
         )
 
-        assertEquals(Instance("host0", 51000), loadBalancer.get())
-        assertEquals(Instance("host1", 51001), loadBalancer.get())
-        assertEquals(Instance("host2", 51002), loadBalancer.get())
-        assertEquals(Instance("host0", 51000), loadBalancer.get())
+        listOf(
+            Instance("host0", 51000),
+            Instance("host1", 51001),
+            Instance("host2", 51002),
+            Instance("host0", 51000),
+        )
+            .forEach { expected ->
+                StepVerifier.create(loadBalancer.get())
+                    .expectNext(expected)
+                    .verifyComplete()
+            }
     }
 
 }
