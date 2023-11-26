@@ -1,4 +1,4 @@
-package com.kaizensundays.fusion.messsaging
+package com.kaizensundays.fusion.messaging
 
 import org.junit.Test
 import java.net.URI

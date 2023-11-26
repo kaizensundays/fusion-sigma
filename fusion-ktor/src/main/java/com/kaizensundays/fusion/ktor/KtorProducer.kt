@@ -1,8 +1,8 @@
 package com.kaizensundays.fusion.ktor
 
-import com.kaizensundays.fusion.messsaging.Instance
-import com.kaizensundays.fusion.messsaging.LoadBalancer
-import com.kaizensundays.fusion.messsaging.Producer
+import com.kaizensundays.fusion.messaging.Instance
+import com.kaizensundays.fusion.messaging.LoadBalancer
+import com.kaizensundays.fusion.messaging.Producer
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpRequestRetry

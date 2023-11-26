@@ -1,4 +1,4 @@
-package com.kaizensundays.fusion.messsaging
+package com.kaizensundays.fusion.messaging
 
 import reactor.core.publisher.Mono
 

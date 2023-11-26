@@ -1,7 +1,7 @@
 package com.kaizensundays.fusion.ktor
 
-import com.kaizensundays.fusion.messsaging.Instance
-import com.kaizensundays.fusion.messsaging.LoadBalancer
+import com.kaizensundays.fusion.messaging.Instance
+import com.kaizensundays.fusion.messaging.LoadBalancer
 import io.ktor.server.application.call
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get

@@ -1,7 +1,7 @@
 package com.kaizensundays.fusion.webflux
 
-import com.kaizensundays.fusion.messsaging.LoadBalancer
-import com.kaizensundays.fusion.messsaging.Producer
+import com.kaizensundays.fusion.messaging.LoadBalancer
+import com.kaizensundays.fusion.messaging.Producer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.web.reactive.function.BodyInserters
