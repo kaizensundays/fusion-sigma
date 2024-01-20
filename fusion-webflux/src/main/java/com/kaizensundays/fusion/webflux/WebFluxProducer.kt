@@ -160,6 +160,21 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
             .doOnSubscribe { _ -> ws.subscribe() }
     }
 
+    override fun request(topic: URI, messages: Flux<ByteArray>): Flux<ByteArray> {
+
+        require("ws" == topic.scheme)
+
+        val opts = topicOptions(topic)
+
+        val client = webSocketClient()
+
+        return Flux.defer { stream(topic, messages, client) }
+            .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
+                .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
+                .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
+            )
+    }
+
     override fun request(topic: URI, msg: ByteArray): Flux<ByteArray> {
 
         require(supportedSchemes.contains(topic.scheme))
@@ -177,21 +192,6 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
 
     override fun request(topic: URI): Flux<ByteArray> {
         return request(topic, byteArrayOf())
-    }
-
-    override fun request(topic: URI, messages: Flux<ByteArray>): Flux<ByteArray> {
-
-        require("ws" == topic.scheme)
-
-        val opts = topicOptions(topic)
-
-        val client = webSocketClient()
-
-        return Flux.defer { stream(topic, messages, client) }
-            .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
-                .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
-                .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
-            )
     }
 
     private fun send(topic: URI, msg: ByteArray, client: WebSocketClient): Mono<Void> {

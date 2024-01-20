@@ -47,23 +47,6 @@ class WebFluxProducerIntegrationTest : IntegrationTestSupport() {
         producer = WebFluxProducer(loadBalancer)
     }
 
-    @Test
-    fun stream() {
-
-        val messages = (0..3)
-            .map { _ -> "{ ${javaClass.simpleName}:${System.currentTimeMillis()} }".toByteArray() }
-
-        val topic = URI("ws:/default/ws?maxAttempts=3")
-
-        val result = producer.request(topic, Flux.fromIterable(messages))
-            .take(messages.size.toLong())
-
-        val done = StepVerifier.create(result)
-            .expectNextCount(messages.size.toLong())
-            .verifyComplete()
-
-        assertTrue(done < Duration.ofSeconds(10))
-    }
 
     @Test
     fun get() {
@@ -108,6 +91,24 @@ class WebFluxProducerIntegrationTest : IntegrationTestSupport() {
             .expectError(IllegalStateException::class.java)
             .verify()
 
+    }
+
+    @Test
+    fun stream() {
+
+        val messages = (0..3)
+            .map { _ -> "{ ${javaClass.simpleName}:${System.currentTimeMillis()} }".toByteArray() }
+
+        val topic = URI("ws:/default/ws?maxAttempts=3")
+
+        val result = producer.request(topic, Flux.fromIterable(messages))
+            .take(messages.size.toLong())
+
+        val done = StepVerifier.create(result)
+            .expectNextCount(messages.size.toLong())
+            .verifyComplete()
+
+        assertTrue(done < Duration.ofSeconds(10))
     }
 
     @Test
