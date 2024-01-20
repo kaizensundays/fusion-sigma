@@ -15,7 +15,6 @@ import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.socket.client.WebSocketClient
 import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
-import java.lang.Thread.sleep
 import java.net.URI
 import java.time.Duration
 import kotlin.test.assertEquals
@@ -49,25 +48,7 @@ class WebFluxProducerIntegrationTest : IntegrationTestSupport() {
     }
 
     @Test
-    fun ws() {
-        assertTrue(port > 0)
-
-        val msg = "{ ${javaClass.simpleName} }".toByteArray()
-
-        val topic = URI("ws:/default/ws?maxAttempts=3")
-
-        producer.request(topic, msg)
-            .doOnSubscribe { logger.info("*** subscribed") }
-            .take(1)
-            .doOnNext { bytes -> logger.info("***: {}", String(bytes)) }
-            .doOnComplete { logger.info("Done") }
-            .blockLast(10)
-
-        sleep(1_000)
-    }
-
-    @Test
-    fun wsStream() {
+    fun stream() {
 
         val messages = (0..3)
             .map { _ -> "{ ${javaClass.simpleName}:${System.currentTimeMillis()} }".toByteArray() }

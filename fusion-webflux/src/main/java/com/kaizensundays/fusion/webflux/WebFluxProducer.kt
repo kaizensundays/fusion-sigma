@@ -135,14 +135,14 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
             )
     }
 
-    private fun ws(topic: URI, msgs: Flux<ByteArray>, client: WebSocketClient): Flux<ByteArray> {
+    private fun stream(topic: URI, messages: Flux<ByteArray>, client: WebSocketClient): Flux<ByteArray> {
 
         val uri = nextUri(topic)
 
         val sub = Sinks.many().multicast().directBestEffort<ByteArray>()
 
         val ws = client.execute(uri) { session ->
-            session.send(msgs.map { msg -> session.binaryMessage { factory -> factory.wrap(msg) } })
+            session.send(messages.map { msg -> session.binaryMessage { factory -> factory.wrap(msg) } })
                 .thenMany(session.receive().map { wsm -> wsm.payloadAsText }
                     .doOnNext { msg ->
                         logger.info("< {}", msg)
@@ -187,7 +187,7 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
 
         val client = webSocketClient()
 
-        return Flux.defer { ws(topic, messages, client) }
+        return Flux.defer { stream(topic, messages, client) }
             .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
                 .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
                 .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
