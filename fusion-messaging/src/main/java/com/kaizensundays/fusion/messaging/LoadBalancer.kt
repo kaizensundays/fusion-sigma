@@ -1,4 +1,6 @@
-package com.kaizensundays.fusion.messsaging
+package com.kaizensundays.fusion.messaging
+
+import reactor.core.publisher.Mono
 
 /**
  * Created: Sunday 10/8/2023, 1:24 PM Eastern Time
@@ -7,6 +9,6 @@ package com.kaizensundays.fusion.messsaging
  */
 fun interface LoadBalancer {
 
-    fun get(): Instance
+    fun get(): Mono<Instance>
 
 }

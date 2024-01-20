@@ -1,7 +1,7 @@
 package com.kaizensundays.fusion.webflux
 
-import com.kaizensundays.fusion.messsaging.LoadBalancer
-import com.kaizensundays.fusion.messsaging.Producer
+import com.kaizensundays.fusion.messaging.LoadBalancer
+import com.kaizensundays.fusion.messaging.Producer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.web.reactive.function.BodyInserters
@@ -83,7 +83,8 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
     }
 
     private fun nextUri(topic: URI): URI {
-        val instance = loadBalancer.get()
+        val instance = loadBalancer.get().block(Duration.ofSeconds(100))
+        requireNotNull(instance)
         val uri = URI("http://${instance.host}:${instance.port}" + topic.path)
         logger.info("nextUri=$uri")
         return uri
@@ -134,16 +135,14 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
             )
     }
 
-    private fun ws(topic: URI, msg: ByteArray, client: WebSocketClient): Flux<ByteArray> {
+    private fun stream(topic: URI, messages: Flux<ByteArray>, client: WebSocketClient): Flux<ByteArray> {
 
         val uri = nextUri(topic)
 
         val sub = Sinks.many().multicast().directBestEffort<ByteArray>()
 
-        val pub = Flux.just(String(msg))
-
         val ws = client.execute(uri) { session ->
-            session.send(pub.map { msg -> session.textMessage(msg) })
+            session.send(messages.map { msg -> session.binaryMessage { factory -> factory.wrap(msg) } })
                 .thenMany(session.receive().map { wsm -> wsm.payloadAsText }
                     .doOnNext { msg ->
                         logger.info("< {}", msg)
@@ -161,13 +160,15 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
             .doOnSubscribe { _ -> ws.subscribe() }
     }
 
-    private fun ws(topic: URI, msg: ByteArray): Flux<ByteArray> {
+    override fun request(topic: URI, messages: Flux<ByteArray>): Flux<ByteArray> {
+
+        require("ws" == topic.scheme)
 
         val opts = topicOptions(topic)
 
         val client = webSocketClient()
 
-        return Flux.defer { ws(topic, msg, client) }
+        return Flux.defer { stream(topic, messages, client) }
             .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
                 .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
                 .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
@@ -180,7 +181,7 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
 
         return try {
             when (topic.scheme) {
-                "ws" -> ws(topic, msg)
+                "ws" -> request(topic, Flux.just(msg))
                 "post" -> post(topic, msg)
                 else -> get(topic)
             }
@@ -193,15 +194,14 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
         return request(topic, byteArrayOf())
     }
 
-
     private fun send(topic: URI, msg: ByteArray, client: WebSocketClient): Mono<Void> {
 
         val uri = nextUri(topic)
 
-        val pub = Flux.just(String(msg))
+        val pub = Flux.just(msg)
 
         return client.execute(uri) { session ->
-            session.send(pub.map { msg -> session.textMessage(msg) })
+            session.send(pub.map { msg -> session.binaryMessage { factory -> factory.wrap(msg) } })
         }
     }
 

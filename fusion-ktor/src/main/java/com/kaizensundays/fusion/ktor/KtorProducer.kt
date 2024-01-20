@@ -1,8 +1,8 @@
 package com.kaizensundays.fusion.ktor
 
-import com.kaizensundays.fusion.messsaging.Instance
-import com.kaizensundays.fusion.messsaging.LoadBalancer
-import com.kaizensundays.fusion.messsaging.Producer
+import com.kaizensundays.fusion.messaging.Instance
+import com.kaizensundays.fusion.messaging.LoadBalancer
+import com.kaizensundays.fusion.messaging.Producer
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpRequestRetry
@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import java.net.URI
+import java.time.Duration
 
 /**
  * Created: Saturday 10/07/2023, 1:15 PM Eastern Time
@@ -57,7 +58,8 @@ class KtorProducer(private val loadBalancer: LoadBalancer) : Producer {
     }
 
     private fun nextUrl(topic: URI): String {
-        val instance = loadBalancer.get()
+        val instance = loadBalancer.get().block(Duration.ofSeconds(100))
+        requireNotNull(instance)
         return getUrl(instance, topic)
     }
 
@@ -89,6 +91,10 @@ class KtorProducer(private val loadBalancer: LoadBalancer) : Producer {
                 }
             }
         }
+    }
+
+    override fun request(topic: URI, messages: Flux<ByteArray>): Flux<ByteArray> {
+        return Flux.empty()
     }
 
     override fun request(topic: URI, msg: ByteArray): Flux<ByteArray> {
