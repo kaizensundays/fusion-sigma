@@ -17,7 +17,6 @@ import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
 import java.net.URI
 import java.time.Duration
-import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -51,10 +50,13 @@ class WebFluxProducerIntegrationTest : IntegrationTestSupport() {
     @Test
     fun get() {
 
-        val response = producer.request(URI("get:/ping?maxAttempts=3"))
-            .blockLast(100)
+        val f = producer.request(URI("get:/ping?maxAttempts=3"))
 
-        assertEquals("Ok", response.asText())
+        val done = StepVerifier.create(f)
+            .expectNextMatches { bytes -> "Ok" == String(bytes) }
+            .verifyComplete()
+
+        assertTrue(done < Duration.ofSeconds(10))
     }
 
     @Test
@@ -62,10 +64,13 @@ class WebFluxProducerIntegrationTest : IntegrationTestSupport() {
 
         val msg = "{ ${javaClass.simpleName} }".toByteArray()
 
-        val response = producer.request(URI("post:/submit?maxAttempts=3"), msg)
-            .blockLast(10)
+        val f = producer.request(URI("post:/submit?maxAttempts=3"), msg)
 
-        assertEquals("Ok", response.asText())
+        val done = StepVerifier.create(f)
+            .expectNextMatches { bytes -> "Ok" == String(bytes) }
+            .verifyComplete()
+
+        assertTrue(done < Duration.ofSeconds(10))
     }
 
     @Test
