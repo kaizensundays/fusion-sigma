@@ -6,7 +6,6 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.web.reactive.function.BodyInserters
 import org.springframework.web.reactive.function.client.WebClient
-import org.springframework.web.reactive.socket.WebSocketMessage
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient
 import org.springframework.web.reactive.socket.client.WebSocketClient
 import reactor.core.publisher.Flux
@@ -161,53 +160,13 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
             .doOnSubscribe { _ -> ws.subscribe() }
     }
 
-    private fun ws(topic: URI, msg: ByteArray, client: WebSocketClient): Flux<ByteArray> {
-
-        val uri = nextUri(topic)
-
-        val sub = Sinks.many().multicast().directBestEffort<ByteArray>()
-
-        val pub = Flux.just(String(msg))
-
-        val ws = client.execute(uri) { session ->
-            session.send(pub.map { msg -> session.textMessage(msg) })
-                .thenMany(session.receive().map { wsm -> wsm.payloadAsText }
-                    .doOnNext { msg ->
-                        logger.info("< {}", msg)
-                        sub.tryEmitNext(msg.toByteArray())
-                    }
-                )
-                .then()
-        }.doOnError { e ->
-            logger.error("", e)
-            sub.tryEmitError(e)
-        }
-
-        return sub.asFlux()
-            .publishOn(Schedulers.boundedElastic())
-            .doOnSubscribe { _ -> ws.subscribe() }
-    }
-
-    private fun ws(topic: URI, msg: ByteArray): Flux<ByteArray> {
-
-        val opts = topicOptions(topic)
-
-        val client = webSocketClient()
-
-        return Flux.defer { ws(topic, msg, client) }
-            .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
-                .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
-                .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
-            )
-    }
-
     override fun request(topic: URI, msg: ByteArray): Flux<ByteArray> {
 
         require(supportedSchemes.contains(topic.scheme))
 
         return try {
             when (topic.scheme) {
-                "ws" -> ws(topic, msg)
+                "ws" -> request(topic, Flux.just(msg))
                 "post" -> post(topic, msg)
                 else -> get(topic)
             }
