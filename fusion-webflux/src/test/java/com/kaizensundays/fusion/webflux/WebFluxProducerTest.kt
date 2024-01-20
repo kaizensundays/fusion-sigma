@@ -1,6 +1,6 @@
 package com.kaizensundays.fusion.webflux
 
-import com.kaizensundays.fusion.messsaging.LoadBalancer
+import com.kaizensundays.fusion.messaging.LoadBalancer
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.mock
 import java.net.URI
