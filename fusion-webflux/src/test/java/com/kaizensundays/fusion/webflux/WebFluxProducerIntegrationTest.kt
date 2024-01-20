@@ -13,6 +13,7 @@ import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.test.context.ContextConfiguration
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.socket.client.WebSocketClient
+import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
 import java.lang.Thread.sleep
 import java.net.URI
@@ -63,6 +64,24 @@ class WebFluxProducerIntegrationTest : IntegrationTestSupport() {
             .blockLast(10)
 
         sleep(1_000)
+    }
+
+    @Test
+    fun wsStream() {
+
+        val messages = (0..3)
+            .map { _ -> "{ ${javaClass.simpleName}:${System.currentTimeMillis()} }".toByteArray() }
+
+        val topic = URI("ws:/default/ws?maxAttempts=3")
+
+        val result = producer.request(topic, Flux.fromIterable(messages))
+            .take(messages.size.toLong())
+
+        val done = StepVerifier.create(result)
+            .expectNextCount(messages.size.toLong())
+            .verifyComplete()
+
+        assertTrue(done < Duration.ofSeconds(10))
     }
 
     @Test

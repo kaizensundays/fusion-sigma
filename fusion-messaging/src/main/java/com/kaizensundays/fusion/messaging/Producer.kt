@@ -11,6 +11,8 @@ import java.net.URI
  */
 interface Producer {
 
+    fun request(topic: URI, messages: Flux<ByteArray>): Flux<ByteArray>
+
     fun request(topic: URI, msg: ByteArray): Flux<ByteArray>
 
     fun request(topic: URI): Flux<ByteArray>

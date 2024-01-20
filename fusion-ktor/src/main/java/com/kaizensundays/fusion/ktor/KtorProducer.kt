@@ -93,6 +93,10 @@ class KtorProducer(private val loadBalancer: LoadBalancer) : Producer {
         }
     }
 
+    override fun request(topic: URI, messages: Flux<ByteArray>): Flux<ByteArray> {
+        return Flux.empty()
+    }
+
     override fun request(topic: URI, msg: ByteArray): Flux<ByteArray> {
 
         require(supportedSchemes.contains(topic.scheme))

@@ -6,6 +6,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.web.reactive.function.BodyInserters
 import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.socket.WebSocketMessage
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient
 import org.springframework.web.reactive.socket.client.WebSocketClient
 import reactor.core.publisher.Flux
@@ -135,6 +136,31 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
             )
     }
 
+    private fun ws(topic: URI, msgs: Flux<ByteArray>, client: WebSocketClient): Flux<ByteArray> {
+
+        val uri = nextUri(topic)
+
+        val sub = Sinks.many().multicast().directBestEffort<ByteArray>()
+
+        val ws = client.execute(uri) { session ->
+            session.send(msgs.map { msg -> session.binaryMessage { factory -> factory.wrap(msg) } })
+                .thenMany(session.receive().map { wsm -> wsm.payloadAsText }
+                    .doOnNext { msg ->
+                        logger.info("< {}", msg)
+                        sub.tryEmitNext(msg.toByteArray())
+                    }
+                )
+                .then()
+        }.doOnError { e ->
+            logger.error("", e)
+            sub.tryEmitError(e)
+        }
+
+        return sub.asFlux()
+            .publishOn(Schedulers.boundedElastic())
+            .doOnSubscribe { _ -> ws.subscribe() }
+    }
+
     private fun ws(topic: URI, msg: ByteArray, client: WebSocketClient): Flux<ByteArray> {
 
         val uri = nextUri(topic)
@@ -194,6 +220,20 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
         return request(topic, byteArrayOf())
     }
 
+    override fun request(topic: URI, messages: Flux<ByteArray>): Flux<ByteArray> {
+
+        require("ws" == topic.scheme)
+
+        val opts = topicOptions(topic)
+
+        val client = webSocketClient()
+
+        return Flux.defer { ws(topic, messages, client) }
+            .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
+                .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
+                .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
+            )
+    }
 
     private fun send(topic: URI, msg: ByteArray, client: WebSocketClient): Mono<Void> {
 
