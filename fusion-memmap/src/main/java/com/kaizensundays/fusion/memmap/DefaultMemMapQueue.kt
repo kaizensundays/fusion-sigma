@@ -122,36 +122,47 @@ class DefaultMemMapQueue(
         }
     }
 
-    override fun poll(timeout: Duration): Mono<ByteArray> {
-        if (isEmpty()) {
-            return Mono.empty()
-        }
+    private fun doPoll(timeout: Duration): Mono<ByteArray> {
 
-        val head = head()
-        dataBuffer.position(head)
-        val messageSize = if (head + MESSAGE_META_SIZE > maxQueueSize) {
-            val messageSizeBytes = (0 until MESSAGE_META_SIZE).map { index ->
-                dataBuffer.get((head + index) % maxQueueSize)
-            }.toByteArray()
-            ByteBuffer.wrap(messageSizeBytes).int
+        return if (isEmpty()) {
+            Mono.empty()
         } else {
-            dataBuffer.int
-        }
-        val data: ByteArray =
-            if (head + MESSAGE_META_SIZE + messageSize > maxQueueSize) {
-                (0 until messageSize).fold(byteArrayOf()) { acc, index ->
-                    acc + dataBuffer.get(
-                        (head + MESSAGE_META_SIZE + index) % maxQueueSize
-                    )
-                }
-            } else {
-                val messageByteArray = ByteArray(messageSize)
-                dataBuffer.get(messageByteArray)
-                messageByteArray
-            }
-        head((head + MESSAGE_META_SIZE + messageSize) % maxQueueSize)
 
-        return Mono.just(data)
+            val head = head()
+            dataBuffer.position(head)
+            val messageSize = if (head + MESSAGE_META_SIZE > maxQueueSize) {
+                val messageSizeBytes = (0 until MESSAGE_META_SIZE).map { index ->
+                    dataBuffer.get((head + index) % maxQueueSize)
+                }.toByteArray()
+                ByteBuffer.wrap(messageSizeBytes).int
+            } else {
+                dataBuffer.int
+            }
+            val data: ByteArray =
+                if (head + MESSAGE_META_SIZE + messageSize > maxQueueSize) {
+                    (0 until messageSize).fold(byteArrayOf()) { acc, index ->
+                        acc + dataBuffer.get(
+                            (head + MESSAGE_META_SIZE + index) % maxQueueSize
+                        )
+                    }
+                } else {
+                    val messageByteArray = ByteArray(messageSize)
+                    dataBuffer.get(messageByteArray)
+                    messageByteArray
+                }
+            head((head + MESSAGE_META_SIZE + messageSize) % maxQueueSize)
+
+            Mono.just(data)
+        }
+
+    }
+
+    override fun poll(timeout: Duration): Mono<ByteArray> {
+        return try {
+            doPoll(timeout)
+        } catch (e: Exception) {
+            Mono.error(e)
+        }
     }
 
 }
