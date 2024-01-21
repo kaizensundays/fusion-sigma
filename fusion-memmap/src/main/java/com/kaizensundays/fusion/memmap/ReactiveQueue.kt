@@ -10,7 +10,7 @@ import java.time.Duration
  */
 interface ReactiveQueue<T> {
 
-    fun offer(obj: T, timeout: Duration): Mono<Boolean>
+    fun offer(data: T, timeout: Duration): Mono<Boolean>
 
     fun poll(timeout: Duration): Mono<T>
 

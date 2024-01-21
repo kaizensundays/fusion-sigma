@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory
 import reactor.core.publisher.Mono
 import java.io.File
 import java.io.RandomAccessFile
-import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.time.Duration
 
@@ -18,7 +17,7 @@ class DefaultMemMapQueue(
     private val baseDir: String,
     private val queueName: String,
     private val maxQueueSize: Int
-) : ReactiveQueue<ByteBuffer> {
+) : ReactiveQueue<ByteArray> {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
@@ -36,7 +35,7 @@ class DefaultMemMapQueue(
 
     private val mode = "rw"
 
-    private val fileName = baseDir + File.pathSeparatorChar + queueName
+    private val fileName = baseDir + File.separatorChar + queueName
 
     private val dataFile = RandomAccessFile("$fileName.data", mode)
     private val metaFile = RandomAccessFile("$fileName.meta", mode)
@@ -87,11 +86,14 @@ class DefaultMemMapQueue(
         }
     }
 
-    override fun offer(obj: ByteBuffer, timeout: Duration): Mono<Boolean> {
-        return Mono.just(false)
+    override fun offer(data: ByteArray, timeout: Duration): Mono<Boolean> {
+        if (isFull(data.size)) {
+            return Mono.just(false)
+        }
+        return Mono.just(true)
     }
 
-    override fun poll(timeout: Duration): Mono<ByteBuffer> {
+    override fun poll(timeout: Duration): Mono<ByteArray> {
         return Mono.empty()
     }
 
