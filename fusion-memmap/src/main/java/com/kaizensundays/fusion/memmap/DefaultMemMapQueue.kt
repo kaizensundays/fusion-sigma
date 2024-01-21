@@ -90,26 +90,36 @@ class DefaultMemMapQueue(
         }
     }
 
-    override fun offer(data: ByteArray, timeout: Duration): Mono<Boolean> {
-        if (isFull(data.size)) {
-            return Mono.just(false)
-        }
+    private fun doOffer(data: ByteArray, timeout: Duration): Mono<Boolean> {
 
-        val tail = tail()
-        dataBuffer.position(tail)
-        if (tail + MESSAGE_META_SIZE + data.size >= maxQueueSize) {
-            val messageSizeData = ByteBuffer.allocate(MESSAGE_META_SIZE).putInt(data.size).array()
-            val allData = messageSizeData + data
-            allData.mapIndexed { index, byte ->
-                dataBuffer.put((tail + index) % maxQueueSize, byte)
-            }
+        return if (isFull(data.size)) {
+            Mono.just(false)
         } else {
-            dataBuffer.putInt(data.size)
-            dataBuffer.put(data)
-        }
-        tail((tail + MESSAGE_META_SIZE + data.size) % maxQueueSize)
+            val tail = tail()
+            dataBuffer.position(tail)
+            if (tail + MESSAGE_META_SIZE + data.size >= maxQueueSize) {
+                val messageSizeData = ByteBuffer.allocate(MESSAGE_META_SIZE).putInt(data.size).array()
+                val allData = messageSizeData + data
+                allData.mapIndexed { index, byte ->
+                    dataBuffer.put((tail + index) % maxQueueSize, byte)
+                }
+            } else {
+                dataBuffer.putInt(data.size)
+                dataBuffer.put(data)
+            }
+            tail((tail + MESSAGE_META_SIZE + data.size) % maxQueueSize)
 
-        return Mono.just(true)
+            Mono.just(true)
+        }
+
+    }
+
+    override fun offer(data: ByteArray, timeout: Duration): Mono<Boolean> {
+        return try {
+            doOffer(data, timeout)
+        } catch (e: Exception) {
+            Mono.error(e)
+        }
     }
 
     override fun poll(timeout: Duration): Mono<ByteArray> {
