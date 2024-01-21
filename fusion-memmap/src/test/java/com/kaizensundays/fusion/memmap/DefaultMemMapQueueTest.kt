@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test
 import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
 import java.time.Duration
-import java.util.*
 import kotlin.test.assertTrue
 
 /**
@@ -74,14 +73,28 @@ class DefaultMemMapQueueTest {
 
         val queue = DefaultMemMapQueue(baseDir, javaClass.simpleName + '.' + enclosingMethod(object {}), 1000)
 
-        val messages = (0..3)
-            .map { _ -> "{ ${javaClass.simpleName}:${Date()} }".toByteArray() }
+        val num = 4
 
-        val offers = Flux.fromIterable(messages)
+        val messages = (0 until num)
+            .map { n -> "{ ${javaClass.simpleName}:${n} }" }
+
+        val data = messages.map { s -> s.toByteArray() }
+
+        val offers = Flux.fromIterable(data)
             .flatMap { msg -> queue.offer(msg, timeout) }
 
-        val done = StepVerifier.create(offers)
-            .expectNext(*Array(4) { true })
+        var done = StepVerifier.create(offers)
+            .expectNext(*Array(num) { true })
+            .verifyComplete()
+
+        assertTrue(done < timeout)
+
+        val polls = Flux.range(0, num)
+            .flatMap { _ -> queue.poll(timeout) }
+            .map { msg -> String(msg) }
+
+        done = StepVerifier.create(polls)
+            .expectNext(*messages.toTypedArray())
             .verifyComplete()
 
         assertTrue(done < timeout)
