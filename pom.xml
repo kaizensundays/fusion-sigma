@@ -25,6 +25,7 @@
 
     <modules>
         <module>fusion-ktor</module>
+        <module>fusion-memmap</module>
         <module>fusion-messaging</module>
         <module>fusion-webflux</module>
     </modules>
