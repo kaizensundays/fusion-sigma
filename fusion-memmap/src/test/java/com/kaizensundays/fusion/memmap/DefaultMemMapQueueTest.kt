@@ -45,4 +45,26 @@ class DefaultMemMapQueueTest {
         assertTrue(done < Duration.ofSeconds(10))
     }
 
+    @Test
+    fun offerAndPollOneMessage() {
+
+        queue = DefaultMemMapQueue(baseDir, javaClass.simpleName + '.' + enclosingMethod(object {}), 8)
+
+        val offer = queue.offer("Ok".toByteArray(), Duration.ofSeconds(10))
+
+        var done = StepVerifier.create(offer)
+            .expectNext(true)
+            .verifyComplete()
+
+        assertTrue(done < Duration.ofSeconds(10))
+
+        val poll = queue.poll(Duration.ofSeconds(10))
+
+        done = StepVerifier.create(poll)
+            .expectNextMatches { data -> "Ok" == String(data) }
+            .verifyComplete()
+
+        assertTrue(done < Duration.ofSeconds(10))
+    }
+
 }

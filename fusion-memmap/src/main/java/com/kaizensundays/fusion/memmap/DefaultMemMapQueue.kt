@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory
 import reactor.core.publisher.Mono
 import java.io.File
 import java.io.RandomAccessFile
+import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.time.Duration
 
@@ -13,6 +14,9 @@ import java.time.Duration
  *
  * @author Sergey Chuykov
  */
+@SuppressWarnings(
+    "kotlin:S6518", // get()
+)
 class DefaultMemMapQueue(
     private val baseDir: String,
     private val queueName: String,
@@ -90,6 +94,21 @@ class DefaultMemMapQueue(
         if (isFull(data.size)) {
             return Mono.just(false)
         }
+
+        val tail = tail()
+        dataBuffer.position(tail)
+        if (tail + MESSAGE_META_SIZE + data.size >= maxQueueSize) {
+            val messageSizeData = ByteBuffer.allocate(MESSAGE_META_SIZE).putInt(data.size).array()
+            val allData = messageSizeData + data
+            allData.mapIndexed { index, byte ->
+                dataBuffer.put((tail + index) % maxQueueSize, byte)
+            }
+        } else {
+            dataBuffer.putInt(data.size)
+            dataBuffer.put(data)
+        }
+        tail((tail + MESSAGE_META_SIZE + data.size) % maxQueueSize)
+
         return Mono.just(true)
     }
 
@@ -97,7 +116,32 @@ class DefaultMemMapQueue(
         if (isEmpty()) {
             return Mono.empty()
         }
-        return Mono.just("?".toByteArray())
+
+        val head = head()
+        dataBuffer.position(head)
+        val messageSize = if (head + MESSAGE_META_SIZE > maxQueueSize) {
+            val messageSizeBytes = (0 until MESSAGE_META_SIZE).map { index ->
+                dataBuffer.get((head + index) % maxQueueSize)
+            }.toByteArray()
+            ByteBuffer.wrap(messageSizeBytes).int
+        } else {
+            dataBuffer.int
+        }
+        val data: ByteArray =
+            if (head + MESSAGE_META_SIZE + messageSize > maxQueueSize) {
+                (0 until messageSize).fold(byteArrayOf()) { acc, index ->
+                    acc + dataBuffer.get(
+                        (head + MESSAGE_META_SIZE + index) % maxQueueSize
+                    )
+                }
+            } else {
+                val messageByteArray = ByteArray(messageSize)
+                dataBuffer.get(messageByteArray)
+                messageByteArray
+            }
+        head((head + MESSAGE_META_SIZE + messageSize) % maxQueueSize)
+
+        return Mono.just(data)
     }
 
 }
