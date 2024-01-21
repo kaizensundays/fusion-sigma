@@ -12,19 +12,34 @@ import kotlin.test.assertTrue
  */
 class DefaultMemMapQueueTest {
 
-    private var queue = DefaultMemMapQueue("target/.mmq", javaClass.simpleName, 1000)
+    private val baseDir = "target/.mmq"
+
+    private var queue = DefaultMemMapQueue(baseDir, javaClass.simpleName, 1000)
 
     private fun enclosingMethod(obj: Any) = obj.javaClass.enclosingMethod.name
 
     @Test
     fun offerReturnsFalseIfQueueIsFull() {
 
-        queue = DefaultMemMapQueue("target/.mmq", javaClass.simpleName + '.' + enclosingMethod(object {}), 1)
+        queue = DefaultMemMapQueue(baseDir, javaClass.simpleName + '.' + enclosingMethod(object {}), 1)
 
         val m = queue.offer("abc".toByteArray(), Duration.ofSeconds(10))
 
         val done = StepVerifier.create(m)
             .expectNext(false)
+            .verifyComplete()
+
+        assertTrue(done < Duration.ofSeconds(10))
+    }
+
+    @Test
+    fun pollReturnsNothingIfQueueIsEmpty() {
+
+        queue = DefaultMemMapQueue(baseDir, javaClass.simpleName + '.' + enclosingMethod(object {}), 1)
+
+        val m = queue.poll(Duration.ofSeconds(10))
+
+        val done = StepVerifier.create(m)
             .verifyComplete()
 
         assertTrue(done < Duration.ofSeconds(10))

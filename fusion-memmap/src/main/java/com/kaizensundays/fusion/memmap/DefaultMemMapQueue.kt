@@ -94,7 +94,10 @@ class DefaultMemMapQueue(
     }
 
     override fun poll(timeout: Duration): Mono<ByteArray> {
-        return Mono.empty()
+        if (isEmpty()) {
+            return Mono.empty()
+        }
+        return Mono.just("?".toByteArray())
     }
 
 }
