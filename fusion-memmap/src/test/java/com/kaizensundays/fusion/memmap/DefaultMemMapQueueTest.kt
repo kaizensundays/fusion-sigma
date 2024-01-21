@@ -19,10 +19,12 @@ class DefaultMemMapQueueTest {
 
     private fun enclosingMethod(obj: Any) = obj.javaClass.enclosingMethod.name
 
+    private fun queueName(obj: Any) = javaClass.simpleName + '.' + enclosingMethod(obj)
+
     @Test
     fun offerReturnsFalseIfQueueIsFull() {
 
-        val queue = DefaultMemMapQueue(baseDir, javaClass.simpleName + '.' + enclosingMethod(object {}), 1)
+        val queue = DefaultMemMapQueue(baseDir, queueName(object {}), 1)
 
         val m = queue.offer("abc".toByteArray(), timeout)
 
@@ -36,7 +38,7 @@ class DefaultMemMapQueueTest {
     @Test
     fun pollReturnsNothingIfQueueIsEmpty() {
 
-        val queue = DefaultMemMapQueue(baseDir, javaClass.simpleName + '.' + enclosingMethod(object {}), 1)
+        val queue = DefaultMemMapQueue(baseDir, queueName(object {}), 1)
 
         val m = queue.poll(timeout)
 
@@ -49,7 +51,7 @@ class DefaultMemMapQueueTest {
     @Test
     fun offerAndPollOneMessage() {
 
-        val queue = DefaultMemMapQueue(baseDir, javaClass.simpleName + '.' + enclosingMethod(object {}), 8)
+        val queue = DefaultMemMapQueue(baseDir, queueName(object {}), 8)
 
         val offer = queue.offer("Ok".toByteArray(), timeout)
 
@@ -71,7 +73,7 @@ class DefaultMemMapQueueTest {
     @Test
     fun offerAndPollMessages() {
 
-        val queue = DefaultMemMapQueue(baseDir, javaClass.simpleName + '.' + enclosingMethod(object {}), 1000)
+        val queue = DefaultMemMapQueue(baseDir, queueName(object {}), 1000)
 
         val num = 4
 
