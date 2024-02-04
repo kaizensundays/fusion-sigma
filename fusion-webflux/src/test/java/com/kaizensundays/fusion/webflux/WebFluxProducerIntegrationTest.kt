@@ -101,19 +101,24 @@ class WebFluxProducerIntegrationTest : IntegrationTestSupport() {
     @Test
     fun stream() {
 
-        val messages = (0..3)
-            .map { _ -> "{ ${javaClass.simpleName}:${System.currentTimeMillis()} }".toByteArray() }
+        val num = 4
+
+        val messages = (0 until num + 1)
+            .map { _ -> "{ ${javaClass.simpleName}:${System.currentTimeMillis()} }" }
+
+        val outbound = Flux.fromIterable(messages)
+            .map { s -> s.toByteArray() }
 
         val topic = URI("ws:/default/ws?maxAttempts=3")
 
-        val result = producer.request(topic, Flux.fromIterable(messages))
-            .take(messages.size.toLong())
+        val result = producer.request(topic, outbound)
+            .take(num.toLong())
 
         val done = StepVerifier.create(result)
-            .expectNextCount(messages.size.toLong())
+            .expectNextCount(num.toLong())
             .verifyComplete()
 
-        assertTrue(done < Duration.ofSeconds(10))
+        assertTrue(done < Duration.ofSeconds(60))
     }
 
     @Test

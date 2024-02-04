@@ -20,7 +20,7 @@ class DefaultWebSocketHandler : WebSocketHandler {
     private val topic = Sinks.many().multicast().directBestEffort<ByteArray>()
 
     private fun handle(msg: ByteArray) {
-        logger.info("msg={}", String(msg))
+        logger.info("<<< {}", String(msg))
         topic.tryEmitNext(msg)
     }
 
@@ -39,7 +39,11 @@ class DefaultWebSocketHandler : WebSocketHandler {
             .then()
 
         val pub = session.send(
-            topic.asFlux().map { msg -> session.binaryMessage { factory -> factory.wrap(msg) } }
+            topic.asFlux()
+                .doOnNext { msg ->
+                    logger.info(">>> {}", String(msg))
+                }
+                .map { msg -> session.binaryMessage { factory -> factory.wrap(msg) } }
         )
 
         return Mono.zip(sub, pub).then();

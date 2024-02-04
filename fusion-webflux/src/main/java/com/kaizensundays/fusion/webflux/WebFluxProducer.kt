@@ -141,13 +141,21 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
 
         val sub = Sinks.many().multicast().directBestEffort<ByteArray>()
 
+        val outbound = messages
+            .delayElements(Duration.ofMillis(1000))
+            .doOnNext { msg ->
+                logger.info("> {}", String(msg))
+            }
+
         val ws = client.execute(uri) { session ->
-            session.send(messages.map { msg -> session.binaryMessage { factory -> factory.wrap(msg) } })
-                .thenMany(session.receive().map { wsm -> wsm.payloadAsText }
+            session.send(outbound.map { msg -> session.binaryMessage { factory -> factory.wrap(msg) } })
+                .zipWith(session.receive()
+                    .doOnSubscribe { _ -> logger.info("< doOnSubscribe") }
+                    .map { wsm -> wsm.payloadAsText }
                     .doOnNext { msg ->
                         logger.info("< {}", msg)
                         sub.tryEmitNext(msg.toByteArray())
-                    }
+                    }.then()
                 )
                 .then()
         }.doOnError { e ->
