@@ -180,6 +180,7 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
             val inbound = session.receive()
                 .doOnSubscribe { _ -> logger.info("< doOnSubscribe") }
                 .map { wsm -> wsm.payloadAsText }
+                .publishOn(Schedulers.boundedElastic())
                 .doOnNext { msg ->
                     logger.info("< {}", msg)
                     sub.tryEmitNext(msg.toByteArray())
@@ -187,6 +188,7 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
 
             val outbound = session.send(
                 messages
+                    .publishOn(Schedulers.boundedElastic())
                     .doOnNext { msg ->
                         logger.info("> {}", String(msg))
                     }
