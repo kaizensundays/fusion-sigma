@@ -135,7 +135,7 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
             )
     }
 
-    private fun stream(topic: URI, messages: Flux<ByteArray>, client: WebSocketClient): Flux<ByteArray> {
+    private fun streamZipped(topic: URI, messages: Flux<ByteArray>, client: WebSocketClient): Flux<ByteArray> {
 
         val uri = nextUri(topic)
 
@@ -158,6 +158,47 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
                     }.then()
                 )
                 .then()
+        }.doOnError { e ->
+            logger.error("", e)
+            sub.tryEmitError(e)
+        }
+
+        return sub.asFlux()
+            .publishOn(Schedulers.boundedElastic())
+            .doOnSubscribe { _ -> ws.subscribe() }
+    }
+
+    @Suppress("CallingSubscribeInNonBlockingScope")
+    private fun stream(topic: URI, messages: Flux<ByteArray>, client: WebSocketClient): Flux<ByteArray> {
+
+        val uri = nextUri(topic)
+
+        val sub = Sinks.many().multicast().directBestEffort<ByteArray>()
+
+        val ws = client.execute(uri) { session ->
+
+            val inbound = session.receive()
+                .doOnSubscribe { _ -> logger.info("< doOnSubscribe") }
+                .map { wsm -> wsm.payloadAsText }
+                .doOnNext { msg ->
+                    logger.info("< {}", msg)
+                    sub.tryEmitNext(msg.toByteArray())
+                }.then()
+
+            val outbound = session.send(
+                messages
+                    .doOnNext { msg ->
+                        logger.info("> {}", String(msg))
+                    }
+                    .map { msg ->
+                        session.binaryMessage { factory -> factory.wrap(msg) }
+                    }
+            )
+
+            outbound.subscribe()
+            inbound.subscribe()
+
+            Mono.never()
         }.doOnError { e ->
             logger.error("", e)
             sub.tryEmitError(e)

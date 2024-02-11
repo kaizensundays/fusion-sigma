@@ -103,10 +103,11 @@ class WebFluxProducerIntegrationTest : IntegrationTestSupport() {
 
         val num = 4
 
-        val messages = (0 until num + 1)
+        val messages = (0 until num)
             .map { _ -> "{ ${javaClass.simpleName}:${System.currentTimeMillis()} }" }
 
         val outbound = Flux.fromIterable(messages)
+            .delayElements(Duration.ofMillis(100))
             .map { s -> s.toByteArray() }
 
         val topic = URI("ws:/default/ws?maxAttempts=3")
@@ -118,7 +119,7 @@ class WebFluxProducerIntegrationTest : IntegrationTestSupport() {
             .expectNextCount(num.toLong())
             .verifyComplete()
 
-        assertTrue(done < Duration.ofSeconds(60))
+        assertTrue(done < Duration.ofSeconds(30))
     }
 
     @Test
