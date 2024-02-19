@@ -184,13 +184,20 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
                 .doOnNext { msg ->
                     logger.info("< {}", msg)
                     sub.tryEmitNext(msg.toByteArray())
-                }.then()
+                }
+                .doOnError { e ->
+                    sub.tryEmitError(e)
+                }
+                .then()
 
             val outbound = session.send(
                 messages
                     .publishOn(Schedulers.boundedElastic())
                     .doOnNext { msg ->
                         logger.info("> {}", String(msg))
+                    }
+                    .doOnError { e ->
+                        sub.tryEmitError(e)
                     }
                     .map { msg ->
                         session.binaryMessage { factory -> factory.wrap(msg) }
