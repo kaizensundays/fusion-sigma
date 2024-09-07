@@ -2,6 +2,7 @@ package com.kaizensundays.fusion.webflux
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.springframework.core.io.buffer.DataBuffer
 import org.springframework.web.reactive.socket.WebSocketHandler
 import org.springframework.web.reactive.socket.WebSocketSession
 import reactor.core.publisher.Mono
@@ -16,23 +17,33 @@ class DefaultWebSocketHandler : WebSocketHandler {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
-    private val topic = Sinks.many().multicast().directBestEffort<String>()
+    private val topic = Sinks.many().multicast().directBestEffort<ByteArray>()
 
-    fun handle(msg: String) {
-        logger.info("msg={}", msg)
+    private fun handle(msg: ByteArray) {
+        logger.info("<<< {}", String(msg))
         topic.tryEmitNext(msg)
+    }
+
+    private fun readBytes(data: DataBuffer): ByteArray {
+        val bytes = ByteArray(data.readableByteCount())
+        data.read(bytes)
+        return bytes
     }
 
     override fun handle(session: WebSocketSession): Mono<Void> {
 
         val sub = session.receive()
-            .map { wsm -> wsm.payloadAsText }
+            .map { wsm -> readBytes(wsm.payload) }
             .log()
             .doOnNext { msg -> handle(msg) }
             .then()
 
         val pub = session.send(
-            topic.asFlux().map { msg -> session.textMessage(msg) }
+            topic.asFlux()
+                .doOnNext { msg ->
+                    logger.info(">>> {}", String(msg))
+                }
+                .map { msg -> session.binaryMessage { factory -> factory.wrap(msg) } }
         )
 
         return Mono.zip(sub, pub).then();
