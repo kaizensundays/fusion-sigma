@@ -1,4 +1,4 @@
-package com.kaizensundays.fusion.messsaging
+package com.kaizensundays.fusion.messaging
 
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
@@ -10,6 +10,8 @@ import java.net.URI
  * @author Sergey Chuykov
  */
 interface Producer {
+
+    fun request(topic: URI, messages: Flux<ByteArray>): Flux<ByteArray>
 
     fun request(topic: URI, msg: ByteArray): Flux<ByteArray>
 

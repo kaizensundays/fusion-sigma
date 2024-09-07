@@ -1,8 +1,8 @@
 package com.kaizensundays.fusion.webflux
 
-import com.kaizensundays.fusion.messsaging.DefaultLoadBalancer
-import com.kaizensundays.fusion.messsaging.Instance
-import com.kaizensundays.fusion.messsaging.LoadBalancer
+import com.kaizensundays.fusion.messaging.DefaultLoadBalancer
+import com.kaizensundays.fusion.messaging.Instance
+import com.kaizensundays.fusion.messaging.LoadBalancer
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -13,11 +13,10 @@ import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.test.context.ContextConfiguration
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.socket.client.WebSocketClient
+import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
-import java.lang.Thread.sleep
 import java.net.URI
 import java.time.Duration
-import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -47,31 +46,17 @@ class WebFluxProducerIntegrationTest : IntegrationTestSupport() {
         producer = WebFluxProducer(loadBalancer)
     }
 
-    @Test
-    fun ws() {
-        assertTrue(port > 0)
-
-        val msg = "{ ${javaClass.simpleName} }".toByteArray()
-
-        val topic = URI("ws:/default/ws?maxAttempts=3")
-
-        producer.request(topic, msg)
-            .doOnSubscribe { logger.info("*** subscribed") }
-            .take(1)
-            .doOnNext { bytes -> logger.info("***: {}", String(bytes)) }
-            .doOnComplete { logger.info("Done") }
-            .blockLast(10)
-
-        sleep(1_000)
-    }
 
     @Test
     fun get() {
 
-        val response = producer.request(URI("get:/ping?maxAttempts=3"))
-            .blockLast(100)
+        val f = producer.request(URI("get:/ping?maxAttempts=3"))
 
-        assertEquals("Ok", response.asText())
+        val done = StepVerifier.create(f)
+            .expectNextMatches { bytes -> "Ok" == String(bytes) }
+            .verifyComplete()
+
+        assertTrue(done < Duration.ofSeconds(10))
     }
 
     @Test
@@ -79,10 +64,13 @@ class WebFluxProducerIntegrationTest : IntegrationTestSupport() {
 
         val msg = "{ ${javaClass.simpleName} }".toByteArray()
 
-        val response = producer.request(URI("post:/submit?maxAttempts=3"), msg)
-            .blockLast(10)
+        val f = producer.request(URI("post:/submit?maxAttempts=3"), msg)
 
-        assertEquals("Ok", response.asText())
+        val done = StepVerifier.create(f)
+            .expectNextMatches { bytes -> "Ok" == String(bytes) }
+            .verifyComplete()
+
+        assertTrue(done < Duration.ofSeconds(10))
     }
 
     @Test
@@ -108,6 +96,30 @@ class WebFluxProducerIntegrationTest : IntegrationTestSupport() {
             .expectError(IllegalStateException::class.java)
             .verify()
 
+    }
+
+    @Test
+    fun stream() {
+
+        val num = 4
+
+        val messages = (0 until num)
+            .map { _ -> "{ ${javaClass.simpleName}:${System.currentTimeMillis()} }" }
+
+        val outbound = Flux.fromIterable(messages)
+            .delayElements(Duration.ofMillis(100))
+            .map { s -> s.toByteArray() }
+
+        val topic = URI("ws:/default/ws?maxAttempts=3")
+
+        val result = producer.request(topic, outbound)
+            .take(num.toLong())
+
+        val done = StepVerifier.create(result)
+            .expectNextCount(num.toLong())
+            .verifyComplete()
+
+        assertTrue(done < Duration.ofSeconds(30))
     }
 
     @Test

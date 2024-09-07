@@ -1,8 +1,8 @@
 package com.kaizensundays.fusion.ktor
 
-import com.kaizensundays.fusion.messsaging.DefaultLoadBalancer
-import com.kaizensundays.fusion.messsaging.Instance
-import com.kaizensundays.fusion.messsaging.LoadBalancer
+import com.kaizensundays.fusion.messaging.DefaultLoadBalancer
+import com.kaizensundays.fusion.messaging.Instance
+import com.kaizensundays.fusion.messaging.LoadBalancer
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.web.server.LocalServerPort
