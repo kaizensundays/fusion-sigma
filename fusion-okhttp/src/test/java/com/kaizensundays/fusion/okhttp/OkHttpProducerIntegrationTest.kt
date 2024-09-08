@@ -49,7 +49,8 @@ class OkHttpProducerIntegrationTest : IntegrationTestSupport() {
         val m = producer.send(topic, msg)
 
         val done = StepVerifier.create(m)
-            .verifyErrorMatches { e -> e is IllegalStateException }
+            .verifyComplete()
+        //.verifyErrorMatches { e -> e is IllegalStateException }
 
         assertTrue(done < Duration.ofSeconds(10))
     }

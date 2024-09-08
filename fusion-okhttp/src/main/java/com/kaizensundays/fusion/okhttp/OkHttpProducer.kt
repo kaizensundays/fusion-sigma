@@ -4,12 +4,14 @@ import com.kaizensundays.fusion.messaging.LoadBalancer
 import com.kaizensundays.fusion.messaging.Producer
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import okio.ByteString
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.util.retry.Retry
-import java.io.IOException
 import java.net.URI
 import java.time.Duration
 
@@ -18,6 +20,9 @@ import java.time.Duration
  *
  * @author Sergey Chuykov
  */
+@SuppressWarnings(
+    "kotlin:S6508", // Mono<Void>
+)
 class OkHttpProducer(private val loadBalancer: LoadBalancer) : Producer {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -45,6 +50,14 @@ class OkHttpProducer(private val loadBalancer: LoadBalancer) : Producer {
         return opts
     }
 
+    private fun nextUri(topic: URI): URI {
+        val instance = loadBalancer.get().block(Duration.ofSeconds(100))
+        requireNotNull(instance)
+        val uri = URI("${instance.protocol}://${instance.host}:${instance.port}" + topic.path)
+        logger.info("nextUri=$uri")
+        return uri
+    }
+
     override fun request(topic: URI, messages: Flux<ByteArray>): Flux<ByteArray> {
         return Flux.empty()
     }
@@ -66,11 +79,35 @@ class OkHttpProducer(private val loadBalancer: LoadBalancer) : Producer {
         return request(topic, byteArrayOf())
     }
 
-    private fun send(topic: URI, msg: ByteArray, s: String): Mono<Void> {
+    private fun send(topic: URI, msg: ByteArray, client: OkHttpClient): Mono<Void> {
 
-        return Mono.error(IOException())
+        return Mono.create { sink ->
+
+            val uri = nextUri(topic)
+            logger.info("uri=$uri")
+
+            val request = Request.Builder()
+                .url(uri.toURL())
+                .build()
+
+            val listener = object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
+                    val byteString = ByteString.of(*msg)
+                    webSocket.send(byteString)
+                    println("Sent")
+                    webSocket.close(1000, "Closing connection")
+                    sink.success()
+                }
+
+                @Suppress("WRONG_NULLABILITY_FOR_JAVA_OVERRIDE")
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
+                    logger.error("onFailure: ${t.message}", t)
+                    sink.error(t)
+                }
+            }
+            client.newWebSocket(request, listener)
+        }
     }
-
 
     override fun send(topic: URI, msg: ByteArray): Mono<Void> {
 
@@ -78,7 +115,9 @@ class OkHttpProducer(private val loadBalancer: LoadBalancer) : Producer {
 
         val opts = topicOptions(topic)
 
-        return Mono.defer { send(topic, msg, "") }
+        val client = OkHttpClient()
+
+        return Mono.defer { send(topic, msg, client) }
             .retryWhen(
                 Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
                     .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
