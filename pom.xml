@@ -21,12 +21,14 @@
         <slf4j.version>1.7.25</slf4j.version>
         <log4j.version>2.17.2</log4j.version>
         <spring-boot.version>2.7.16</spring-boot.version>
+        <okhttp.version>3.8.1</okhttp.version>
     </properties>
 
     <modules>
         <module>fusion-ktor</module>
         <module>fusion-memmap</module>
         <module>fusion-messaging</module>
+        <module>fusion-okhttp</module>
         <module>fusion-webflux</module>
     </modules>
 
