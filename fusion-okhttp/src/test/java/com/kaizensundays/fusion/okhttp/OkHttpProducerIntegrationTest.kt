@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.test.context.ContextConfiguration
+import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
 import java.net.URI
 import java.time.Duration
@@ -37,6 +38,30 @@ class OkHttpProducerIntegrationTest : IntegrationTestSupport() {
             )
         )
         producer = OkHttpProducer(loadBalancer)
+    }
+
+    @Test
+    fun stream() {
+
+        val num = 4
+
+        val messages = (0 until num)
+            .map { _ -> "{ ${javaClass.simpleName}:${System.currentTimeMillis()} }" }
+
+        val outbound = Flux.fromIterable(messages)
+            .delayElements(Duration.ofMillis(100))
+            .map { s -> s.toByteArray() }
+
+        val topic = URI("ws:/default/ws?maxAttempts=3")
+
+        val result = producer.request(topic, outbound)
+            .take(num.toLong())
+
+        val done = StepVerifier.create(result)
+            .expectNextCount(num.toLong())
+            .verifyComplete()
+
+        assertTrue(done < Duration.ofSeconds(30))
     }
 
     @Test

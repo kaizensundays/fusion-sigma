@@ -58,8 +58,24 @@ class OkHttpProducer(private val loadBalancer: LoadBalancer) : Producer {
         return uri
     }
 
+    private fun stream(topic: URI, messages: Flux<ByteArray>, client: OkHttpClient): Flux<ByteArray> {
+
+        return Flux.just("0", "1", "3", "7").map { s -> s.toByteArray() }
+    }
+
     override fun request(topic: URI, messages: Flux<ByteArray>): Flux<ByteArray> {
-        return Flux.empty()
+
+        require("ws" == topic.scheme)
+
+        val opts = topicOptions(topic)
+
+        val client = OkHttpClient.Builder().build()
+
+        return Flux.defer { stream(topic, messages, client) }
+            .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
+                .maxBackoff(Duration.ofSeconds(opts.maxBackoffSec))
+                .doAfterRetry { signal -> logger.trace(signal.printAttempts()) }
+            )
     }
 
     override fun request(topic: URI, msg: ByteArray): Flux<ByteArray> {
