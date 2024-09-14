@@ -64,6 +64,8 @@ class OkHttpProducerIntegrationTest : IntegrationTestSupport() {
 
         val result = producer.request(topic, outbound)
             .take(num.toLong())
+            .publishOn(Schedulers.boundedElastic())
+            .doOnNext {msg -> logger.info("msg: " + String(msg))}
             .doOnSubscribe { logger.info("inbound: doOnSubscribe") }
             .doOnError { logger.info("inbound: doOnError") }
             .doOnCancel { logger.info("inbound: doOnCancel") }
