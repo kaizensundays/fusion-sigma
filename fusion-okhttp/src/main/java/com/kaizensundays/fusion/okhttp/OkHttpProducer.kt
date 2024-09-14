@@ -60,7 +60,43 @@ class OkHttpProducer(private val loadBalancer: LoadBalancer) : Producer {
 
     private fun stream(topic: URI, messages: Flux<ByteArray>, client: OkHttpClient): Flux<ByteArray> {
 
-        return Flux.just("0", "1", "3", "7").map { s -> s.toByteArray() }
+        return Flux.create { sink ->
+
+            val uri = nextUri(topic)
+
+            val request = Request.Builder()
+                .url(uri.toURL())
+                .build()
+
+            val listener = object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
+                    logger.debug("onOpen")
+                    messages.map { msg -> webSocket.send(ByteString.of(*msg)) }
+                        .subscribe()
+                }
+
+                override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                    logger.debug("onMessage")
+                    sink.next(bytes.toByteArray())
+                }
+
+                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                    logger.debug("onClosing")
+                    sink.complete()
+                }
+
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    logger.debug("onClosed")
+                }
+
+                @Suppress("WRONG_NULLABILITY_FOR_JAVA_OVERRIDE")
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
+                    logger.error("onFailure: ${t.message}", t)
+                    sink.error(t)
+                }
+            }
+            client.newWebSocket(request, listener)
+        }
     }
 
     override fun request(topic: URI, messages: Flux<ByteArray>): Flux<ByteArray> {

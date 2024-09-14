@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.test.context.ContextConfiguration
 import reactor.core.publisher.Flux
+import reactor.core.scheduler.Schedulers
 import reactor.test.StepVerifier
 import java.net.URI
 import java.time.Duration
@@ -32,8 +33,8 @@ class OkHttpProducerIntegrationTest : IntegrationTestSupport() {
     fun before() {
         loadBalancer = DefaultLoadBalancer(
             listOf(
-                Instance("localhost", port + 2),
-                Instance("localhost", port + 1),
+                //Instance("localhost", port + 2),
+                //Instance("localhost", port + 1),
                 Instance("localhost", port),
             )
         )
@@ -50,12 +51,25 @@ class OkHttpProducerIntegrationTest : IntegrationTestSupport() {
 
         val outbound = Flux.fromIterable(messages)
             .delayElements(Duration.ofMillis(100))
+            .publishOn(Schedulers.boundedElastic())
             .map { s -> s.toByteArray() }
+            .doOnSubscribe { logger.info("outbound: doOnSubscribe") }
+            .doOnError { logger.info("outbound: doOnError") }
+            .doOnCancel { logger.info("outbound: doOnCancel") }
+            .doOnComplete { logger.info("outbound: doOnComplete") }
+            .doOnTerminate { logger.info("outbound: doOnTerminate") }
+            .subscribeOn(Schedulers.boundedElastic())
 
         val topic = URI("ws:/default/ws?maxAttempts=3")
 
         val result = producer.request(topic, outbound)
             .take(num.toLong())
+            .doOnSubscribe { logger.info("inbound: doOnSubscribe") }
+            .doOnError { logger.info("inbound: doOnError") }
+            .doOnCancel { logger.info("inbound: doOnCancel") }
+            .doOnComplete { logger.info("inbound: doOnComplete") }
+            .doOnTerminate { logger.info("inbound: doOnTerminate") }
+            .subscribeOn(Schedulers.boundedElastic())
 
         val done = StepVerifier.create(result)
             .expectNextCount(num.toLong())
