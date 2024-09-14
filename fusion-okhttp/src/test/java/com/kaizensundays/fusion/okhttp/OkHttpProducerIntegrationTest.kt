@@ -3,6 +3,7 @@ package com.kaizensundays.fusion.okhttp
 import com.kaizensundays.fusion.messaging.DefaultLoadBalancer
 import com.kaizensundays.fusion.messaging.Instance
 import com.kaizensundays.fusion.messaging.LoadBalancer
+import okhttp3.OkHttpClient
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.web.server.LocalServerPort
@@ -38,7 +39,7 @@ class OkHttpProducerIntegrationTest : IntegrationTestSupport() {
                 Instance("localhost", port),
             )
         )
-        producer = OkHttpProducer(loadBalancer)
+        producer = OkHttpProducer(loadBalancer, OkHttpClient.Builder())
     }
 
     @Test
@@ -65,7 +66,7 @@ class OkHttpProducerIntegrationTest : IntegrationTestSupport() {
         val result = producer.request(topic, outbound)
             .take(num.toLong())
             .publishOn(Schedulers.boundedElastic())
-            .doOnNext {msg -> logger.info("msg: " + String(msg))}
+            .doOnNext { msg -> logger.info("msg: " + String(msg)) }
             .doOnSubscribe { logger.info("inbound: doOnSubscribe") }
             .doOnError { logger.info("inbound: doOnError") }
             .doOnCancel { logger.info("inbound: doOnCancel") }

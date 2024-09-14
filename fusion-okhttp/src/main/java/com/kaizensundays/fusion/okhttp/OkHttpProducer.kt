@@ -23,7 +23,7 @@ import java.time.Duration
 @SuppressWarnings(
     "kotlin:S6508", // Mono<Void>
 )
-class OkHttpProducer(private val loadBalancer: LoadBalancer) : Producer {
+class OkHttpProducer(private val loadBalancer: LoadBalancer, private val builder: OkHttpClient.Builder) : Producer {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
@@ -105,7 +105,7 @@ class OkHttpProducer(private val loadBalancer: LoadBalancer) : Producer {
 
         val opts = topicOptions(topic)
 
-        val client = OkHttpClient.Builder().build()
+        val client = builder.build()
 
         return Flux.defer { stream(topic, messages, client) }
             .retryWhen(Retry.backoff(opts.maxAttempts, Duration.ofSeconds(opts.minBackoffSec))
@@ -116,7 +116,7 @@ class OkHttpProducer(private val loadBalancer: LoadBalancer) : Producer {
 
     override fun request(topic: URI, msg: ByteArray): Flux<ByteArray> {
 
-        val client = OkHttpClient.Builder().build()
+        val client = builder.build()
 
         val request = Request.Builder().url("http://localhost:7701/ping").build()
 
@@ -136,7 +136,6 @@ class OkHttpProducer(private val loadBalancer: LoadBalancer) : Producer {
         return Mono.create { sink ->
 
             val uri = nextUri(topic)
-            logger.info("uri=$uri")
 
             val request = Request.Builder()
                 .url(uri.toURL())
@@ -167,7 +166,7 @@ class OkHttpProducer(private val loadBalancer: LoadBalancer) : Producer {
 
         val opts = topicOptions(topic)
 
-        val client = OkHttpClient()
+        val client = builder.build()
 
         return Mono.defer { send(topic, msg, client) }
             .retryWhen(
