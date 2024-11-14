@@ -85,7 +85,8 @@ class WebFluxProducer(private val loadBalancer: LoadBalancer) : Producer {
     private fun nextUri(topic: URI): URI {
         val instance = loadBalancer.get().block(Duration.ofSeconds(100))
         requireNotNull(instance)
-        val uri = URI("${instance.protocol}://${instance.host}:${instance.port}" + topic.path)
+        val query = if (topic.query != null) '?' + topic.query else ""
+        val uri = URI("${instance.protocol}://${instance.host}:${instance.port}" + topic.path + query)
         logger.info("nextUri=$uri")
         return uri
     }
