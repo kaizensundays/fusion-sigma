@@ -15,7 +15,7 @@
 
         <java.version>1.8</java.version>
 
-        <kotlin.version>1.9.25</kotlin.version>
+        <kotlin.version>2.0.21</kotlin.version>
         <ktor.version>2.2.4</ktor.version>
 
         <slf4j.version>1.7.25</slf4j.version>
