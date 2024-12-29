@@ -54,7 +54,7 @@ class KtorProducer(private val loadBalancer: LoadBalancer) : Producer {
     }
 
     private fun url(instance: Instance, topic: URI): String {
-        return "http://${instance.host}:${instance.port}" + topic.path
+        return "${instance.protocol}://${instance.host}:${instance.port}" + topic.path
     }
 
     private fun nextUrl(topic: URI): String {
