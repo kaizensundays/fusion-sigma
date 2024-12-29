@@ -90,6 +90,7 @@ class DefaultMemMapQueue(
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun doOffer(data: ByteArray, timeout: Duration): Mono<Boolean> {
 
         return if (isFull(data.size)) {
@@ -122,6 +123,7 @@ class DefaultMemMapQueue(
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun doPoll(timeout: Duration): Mono<ByteArray> {
 
         return if (isEmpty()) {
